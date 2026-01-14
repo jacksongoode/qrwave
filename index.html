@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>qrwave</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ggwave@0.4.0/ggwave.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+      body { display: grid; place-content: center; min-height: 100vh; margin: 0; gap: 16px; font: 16px system-ui; background: #fafafa; user-select: none; -webkit-user-select: none; }
+      body > * { width: 256px; }
+      input, button { padding: 12px; font: inherit; border: 1px solid #000; border-radius: 4px; text-align: center; outline: none; }
+      input { user-select: text; -webkit-user-select: text; }
+      button { background: #000; color: #fff; cursor: pointer; border: 0; font-weight: 500; }
+      #q { height: 256px; cursor: zoom-in; background: #fff; }
+      #q:fullscreen { width: 100vw; height: 100vh; display: grid; place-items: center; }
+      #q:fullscreen img { width: 90vmin !important; height: auto !important; }
+      #s { font: 500 14px system-ui; text-align: center; text-transform: uppercase; letter-spacing: .05em; height: 1em; }
+    </style>
+  </head>
+  <body>
+    <div id="q" onclick="this.requestFullscreen()"></div>
+    <input id="i" value="https://example.com" spellcheck="false" autocomplete="off" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button id="p">Play</button><button id="l">Listen</button></div>
+    <div id="s">Loading...</div>
+    <script>
+      const qr = new QRCode(q, { text: i.value, width: 256, height: 256 });
+      i.oninput = () => qr.makeCode(i.value || " ");
+
+      let gg, inst, ctx, mic, rec, src;
+      const status = t => s.textContent = t;
+      const toF32 = b => { const a = new ArrayBuffer(b.byteLength); new b.constructor(a).set(b); return new Float32Array(a); };
+      const toI8 = b => { const a = new ArrayBuffer(b.byteLength); new b.constructor(a).set(b); return new Int8Array(a); };
+
+      ggwave_factory().then(o => { gg = o; status("Ready"); });
+
+      async function init() {
+        if (!ctx) ctx = new AudioContext({ sampleRate: 48000 });
+        if (ctx.state === "suspended") await ctx.resume();
+        if (!inst && gg) {
+          const p = gg.getDefaultParameters();
+          p.sampleRateInp = p.sampleRateOut = ctx.sampleRate;
+          inst = gg.init(p);
+        }
+      }
+
+      function stopPlay() {
+        if (src) { try { src.stop(); } catch {} src = null; }
+        p.textContent = "Play";
+      }
+
+      function stopRec() {
+        if (rec) { rec.onaudioprocess = null; try { rec.disconnect(); } catch {} rec = null; }
+        if (mic) { mic.getTracks().forEach(t => t.stop()); mic = null; }
+        l.textContent = "Listen";
+      }
+
+      p.onclick = async () => {
+        await init();
+        if (src) { stopPlay(); status("Ready"); return; }
+        if (rec) stopRec();
+        try {
+          const wave = gg.encode(inst, i.value, gg.ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FASTEST, 25);
+          if (!wave?.length) throw 0;
+          const f = toF32(wave);
+          const buf = ctx.createBuffer(1, f.length, ctx.sampleRate);
+          buf.getChannelData(0).set(f);
+          src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.connect(ctx.destination);
+          src.onended = () => { stopPlay(); status("Ready"); };
+          src.start();
+          p.textContent = "Stop"; status("Playing...");
+        } catch { status("Error"); stopPlay(); }
+      };
+
+      l.onclick = async () => {
+        await init();
+        if (rec) { stopRec(); status("Ready"); return; }
+        try {
+          mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false } });
+          const m = ctx.createMediaStreamSource(mic);
+          rec = ctx.createScriptProcessor(1024, 1, 1);
+          rec.onaudioprocess = e => {
+            if (!inst) return;
+            const r = gg.decode(inst, toI8(new Float32Array(e.inputBuffer.getChannelData(0))));
+            if (r?.length) {
+              const t = new TextDecoder().decode(r);
+              if (t.trim()) { i.value = t; i.oninput(); stopRec(); status("Received!"); }
+            }
+          };
+          m.connect(rec);
+          rec.connect(ctx.destination);
+          l.textContent = "Stop"; status("Listening...");
+        } catch { status("Mic Error"); stopRec(); }
+      };
+    </script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "qrwave",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "bunx serve .",
+    "build": "bun run build.ts",
+    "deploy": "bun run build && wrangler pages deploy dist --project-name=qrwave"
+  },
+  "devDependencies": {
+    "htmlnano": "^2.1.5",
+    "posthtml": "^0.16.7"
+  }
+}
