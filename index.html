@@ -39,12 +39,14 @@
 
       async function init() {
         if (!ctx) ctx = new AudioContext({ sampleRate: 48000 });
-        if (ctx.state === "suspended") await ctx.resume();
-        if (!inst && gg) {
-          const p = gg.getDefaultParameters();
-          p.sampleRateInp = p.sampleRateOut = ctx.sampleRate;
-          inst = gg.init(p);
-        }
+        if (ctx.state !== "running") await ctx.resume();
+        if (!inst && gg) initGgwave();
+      }
+
+      function initGgwave() {
+        const p = gg.getDefaultParameters();
+        p.sampleRateInp = p.sampleRateOut = ctx.sampleRate;
+        inst = gg.init(p);
       }
 
       function stopPlay() {
@@ -81,6 +83,7 @@
       l.onclick = async () => {
         await init();
         if (rec) { stopRec(); status("Ready"); return; }
+        initGgwave();
         try {
           mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false } });
           const m = ctx.createMediaStreamSource(mic);
