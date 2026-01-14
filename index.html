@@ -10,7 +10,7 @@
       * { box-sizing: border-box; }
       body { display: grid; place-content: center; min-height: 100vh; margin: 0; gap: 16px; font: 16px system-ui; background: #fafafa; user-select: none; -webkit-user-select: none; }
       body > * { width: 256px; }
-      input, button { padding: 12px; font: inherit; border: 1px solid #000; border-radius: 4px; text-align: center; outline: none; }
+      input, button { padding: 10px 12px; font: inherit; border: 1px solid #000; border-radius: 4px; text-align: center; outline: none; }
       input { user-select: text; -webkit-user-select: text; }
       button { background: #000; color: #fff; cursor: pointer; border: 0; font-weight: 500; }
       #q { height: 256px; cursor: zoom-in; background: #fff; }
@@ -22,16 +22,18 @@
   <body>
     <div id="q" onclick="this.requestFullscreen()"></div>
     <input id="i" value="https://example.com" spellcheck="false" autocomplete="off" />
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button id="p">Play</button><button id="l">Listen</button></div>
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px"><button id="p">Play</button><button id="u" title="Ultrasonic" style="width:44px;background:#fff;color:#000;border:1px solid #000"">🦇</button><button id="l">Listen</button></div>
     <div id="s">Loading...</div>
     <script>
       const qr = new QRCode(q, { text: i.value, width: 256, height: 256 });
       i.oninput = () => qr.makeCode(i.value || " ");
 
-      let gg, inst, ctx, mic, rec, src;
+      let gg, inst, ctx, mic, rec, src, ultra = false;
       const status = t => s.textContent = t;
       const toF32 = b => { const a = new ArrayBuffer(b.byteLength); new b.constructor(a).set(b); return new Float32Array(a); };
       const toI8 = b => { const a = new ArrayBuffer(b.byteLength); new b.constructor(a).set(b); return new Int8Array(a); };
+      const updateUltra = () => { u.style.background = ultra ? "#000" : "#fff"; u.style.color = ultra ? "#fff" : "#000"; };
+      u.onclick = () => { ultra = !ultra; updateUltra(); };
 
       ggwave_factory().then(o => { gg = o; status("Ready"); });
 
@@ -61,7 +63,8 @@
         if (src) { stopPlay(); status("Ready"); return; }
         if (rec) stopRec();
         try {
-          const wave = gg.encode(inst, i.value, gg.ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FASTEST, 25);
+          const proto = ultra ? gg.ProtocolId.GGWAVE_PROTOCOL_ULTRASOUND_FASTEST : gg.ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FASTEST;
+          const wave = gg.encode(inst, i.value, proto, 25);
           if (!wave?.length) throw 0;
           const f = toF32(wave);
           const buf = ctx.createBuffer(1, f.length, ctx.sampleRate);
